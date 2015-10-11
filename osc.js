@@ -15,12 +15,9 @@ function draw() {
 
   var canvas = document.getElementById("canvas");
   var ctx = canvas.getContext("2d");
+  var W = canvas.width;
+  var H = canvas.height;
 
-  var W = window.innerWidth;
-  var H = window.innerHeight;
-
-  canvas.width = W;
-  canvas.height = H; 
   ctx.fillstyle = "black";
   ctx.fillRect(0,0,W,H);
 
@@ -130,5 +127,16 @@ function startRecord() {
 
 
 window.onload = function() {
+  var canvas = document.getElementById("canvas");
+  var ctx = canvas.getContext("2d");
+
+  var W = window.innerWidth;
+  var H = window.innerHeight;
+  canvas.width = 512;
+  canvas.height = 512*H/W; 
+
+  canvas.style.width = W+"px";
+  canvas.style.height = H+"px;";
+
   startRecord();
 };
