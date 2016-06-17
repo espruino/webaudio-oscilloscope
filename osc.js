@@ -5,7 +5,7 @@ var bufferSize = 256;
 var drawSamples = new Array(bufferSize);
 for (var i=0;i<bufferSize;i++) drawSamples[i]=0;
 var samplesChanged = true;
-var lastData = undefined;
+var lastData = new Array(bufferSize);
 var lastSample = 0;
 var lastTriggered = 0;
 var autoTrigger = false;
@@ -74,22 +74,20 @@ function processAudio(e) {
   // console.log("Foo");
   var data = e.inputBuffer.getChannelData(0);
 
-  var triggerPt = 0.1;
+  var triggerPt = 0.02;
 
   // find trigger
   var triggerIdx = undefined;
-  if (lastData!==undefined) {
-    for (var i = lastData.length - (bufferSize/2); i < lastData.length; ++i) {
-      var sample = lastData[i];
- 
-      lastTriggered++;
-      if (sample>triggerPt && lastSample<=triggerPt) {
-        triggerPt = sample;
-        triggerIdx = i - bufferSize;
-        lastTriggered = 0;
-      }
-      lastSample = sample;
+  for (var i = bufferSize - (bufferSize/2); i < bufferSize; ++i) {
+    var sample = lastData[i];
+
+    lastTriggered++;
+    if (sample>triggerPt && lastSample<=triggerPt) {
+      triggerPt = sample;
+      triggerIdx = i - bufferSize;
+      lastTriggered = 0;
     }
+    lastSample = sample;
   }
   for (var i = 0; i < data.length - (bufferSize/2); ++i) {
     var sample = data[i];
@@ -119,14 +117,15 @@ function processAudio(e) {
     for (var i=0;i<bufferSize;i++) {
       var idx = triggerIdx+i-(bufferSize/2);
       if (idx<0) {
-        if (lastData!==undefined)
-          drawSamples[i] = lastData[idx + lastData.length];
+        drawSamples[i] = lastData[idx + bufferSize];
       } else drawSamples[i] = data[idx];
     }
     draw();
   }
 
-  lastData = data;
+  for (var i=0;i<bufferSize;++i) {
+    lastData[i] = data[i];
+  }
 }
 
 function startRecord() {
@@ -154,7 +153,17 @@ function startRecord() {
       video:false,
       audio:{
         mandatory:[],
-        optional:[{ echoCancellation:false },{ sampleRate:22050 /* 44100 */ }]
+        optional:[{ 
+          echoCancellation:false
+        }, {
+          googEchoCancellation: false,
+        }, {
+          googAutoGainControl: false,
+        }, {
+          googNoiseSuppression: false,
+        }, {
+          googHighpassFilter: false
+        },{ sampleRate:22050 /* 44100 */ }]
       }
     }, function(stream) {
       var inputStream = context.createMediaStreamSource(stream);
@@ -167,7 +176,7 @@ function startRecord() {
 }
 
 
-window.onload = function() {
+window.onresize = function() {
   var canvas = document.getElementById("canvas");
   var ctx = canvas.getContext("2d");
 
@@ -181,3 +190,11 @@ window.onload = function() {
 
   startRecord();
 };
+
+window.onload = function() {
+  window.onresize();
+
+  startRecord();
+};
+
+
