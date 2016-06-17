@@ -8,6 +8,8 @@ var samplesChanged = true;
 var lastData = undefined;
 var lastSample = 0;
 var lastTriggered = 0;
+var autoTrigger = false;
+var averageSampleMagnitude = 1;
 
 function draw() {
   if (!samplesChanged) return;
@@ -17,13 +19,35 @@ function draw() {
   var ctx = canvas.getContext("2d");
   var W = canvas.width;
   var H = canvas.height;
+  var scale = 1;
 
-  ctx.fillstyle = "black";
+  // Work out what scale to render at
+  var sampleMagnitude = 0;
+  for (var i = 0; i < drawSamples.length; ++i) {
+    var s = Math.abs(drawSamples[i]);
+    if (s>sampleMagnitude) sampleMagnitude = s;
+  }
+  averageSampleMagnitude = averageSampleMagnitude*0.9 + sampleMagnitude*0.1;
+  while (scale<16 && averageSampleMagnitude*scale<0.4) scale *= 2;
+
+  // mapping for rendering data
+  function getX(v) { return v*W/drawSamples.length; }
+  function getY(v) { return (1 - v*scale)*H/2; }
+
+
+  ctx.fillStyle = "#000000";
   ctx.fillRect(0,0,W,H);
 
-  function getX(v) { return v*W/drawSamples.length; }
-  function getY(v) { return (v+1)*H/2; }
+  // crosshairs
+  ctx.beginPath();
+  ctx.moveTo(getX(drawSamples.length/2),0);
+  ctx.lineTo(getX(drawSamples.length/2),H);
+  ctx.moveTo(0,getY(0));
+  ctx.lineTo(W,getY(0));
+  ctx.strokeStyle = '#404040';
+  ctx.stroke();
 
+  // the actual line
   ctx.beginPath();
   ctx.moveTo(getX(0),getY(drawSamples[0]));
   for (var i = 0; i < drawSamples.length; ++i) {
@@ -31,6 +55,16 @@ function draw() {
   }
   ctx.strokeStyle = '#ffffff';
   ctx.stroke();
+
+  ctx.font = "20px sans-serif";
+  ctx.textBaseline = "top";
+  ctx.fillStyle = autoTrigger ? '#ff0000' : '#00ff00';
+  ctx.textAlign = "left";
+  ctx.fillText(autoTrigger ? "AUTO" : "Triggered", 10, 10);
+
+  ctx.fillStyle = '#A0A0A0';
+  ctx.textAlign = "right";
+  ctx.fillText(scale+"x", W-10, 10);
 }  
 
 
@@ -40,6 +74,8 @@ function processAudio(e) {
   // console.log("Foo");
   var data = e.inputBuffer.getChannelData(0);
 
+  var triggerPt = 0.1;
+
   // find trigger
   var triggerIdx = undefined;
   if (lastData!==undefined) {
@@ -47,8 +83,9 @@ function processAudio(e) {
       var sample = lastData[i];
  
       lastTriggered++;
-      if (sample>0 && lastSample<=0) {
-        triggerIdx = 0;
+      if (sample>triggerPt && lastSample<=triggerPt) {
+        triggerPt = sample;
+        triggerIdx = i - bufferSize;
         lastTriggered = 0;
       }
       lastSample = sample;
@@ -58,16 +95,20 @@ function processAudio(e) {
     var sample = data[i];
 
     lastTriggered++;
-    if (sample>0 && lastSample<=0) {
-      triggerIdx = 0;
+    if (sample>triggerPt && lastSample<=triggerPt) {
+      triggerPt = sample;
+      triggerIdx = i;
       lastTriggered = 0;
     }
     lastSample = sample;
   }
   // auto-trigger
-  if (triggerIdx===undefined) {
+  autoTrigger = false;
+  if (triggerIdx===undefined) {   
     lastTriggered++;
-    if (lastTriggered>10) { 
+    // if we haven't triggered for a while, turn it on...
+    if (lastTriggered>20) { 
+      autoTrigger = true;
       triggerIdx = data.length - (bufferSize/2);
     }
   }
