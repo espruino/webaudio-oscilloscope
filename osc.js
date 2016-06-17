@@ -33,7 +33,7 @@ function draw() {
   // mapping for rendering data
   function getX(v) { return v*W/drawSamples.length; }
   function getY(v) { return (1 - v*scale)*H/2; }
-
+  function getIY(v) { return H - (5+v*10); }
 
   ctx.fillStyle = "#000000";
   ctx.fillRect(0,0,W,H);
@@ -54,6 +54,21 @@ function draw() {
     ctx.lineTo(getX(i), getY(drawSamples[i]));
   }
   ctx.strokeStyle = '#ffffff';
+  ctx.stroke();
+
+  // the interpreted line
+  var interpHeight 
+  ctx.beginPath();
+  var state = 1;
+  ctx.moveTo(getX(0),getIY(state));
+  for (var i = 0; i < drawSamples.length; ++i) {
+    if (drawSamples[i] < -averageSampleMagnitude*0.5)
+      state = 0;
+    if (drawSamples[i] > averageSampleMagnitude*0.5)
+      state = 1;
+    ctx.lineTo(getX(i), getIY(state));
+  }
+  ctx.strokeStyle = '#00ffff';
   ctx.stroke();
 
   ctx.font = "20px sans-serif";
