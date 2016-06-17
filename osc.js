@@ -1,9 +1,9 @@
-
 // ----------------------------------------------------------------------------------
 
 var bufferSize = 256;
 var drawSamples = new Array(bufferSize);
 for (var i=0;i<bufferSize;i++) drawSamples[i]=0;
+var sampleRate = 22050;
 var samplesChanged = true;
 var lastData = new Array(bufferSize);
 var lastTriggered = 0;
@@ -46,6 +46,26 @@ function draw() {
           interp[j] = 1-state;
       interp[i] = state;
     }    
+  }
+
+  // Interpret serial data if the line is in the right state?
+  var serialData;
+  if (sampleRate && interp[0]==1) { 
+    var samplesPerBit = sampleRate/9600;
+    var lastValidChar = bufferSize - samplesPerBit*9;    
+    var i = 0;
+    // find the start bit
+    while (i<lastValidChar && interp[i]==1) i++;
+    // skip to the middle of the next bit
+    i += samplesPerBit*1.5;
+    // check if we had a 'stop' bit
+    if (interp[0|(i+samplesPerBit*8)]==1) {
+      // we do! read data
+      serialData = 0;
+      for (var j=0;j<8;j++)
+        if (interp[0|(i+samplesPerBit*j)])
+          serialData |= 1<<j;
+    }
   }
 
   // mapping for rendering data
@@ -94,13 +114,19 @@ function draw() {
   ctx.fillStyle = '#A0A0A0';
   ctx.textAlign = "right";
   ctx.fillText(scale+"x", W-10, 10);
+
+  if (serialData!==undefined) {
+    ctx.textBaseline = "alphabetic";
+    ctx.fillStyle = '#00ffff';
+    ctx.fillText("Serial data = "+serialData, W-10, H-20);
+  }
 }  
 
 
 // ----------------------------------------------------------------------------------
 
 function processAudio(e) { 
-  // console.log("Foo");
+  sampleRate = e.inputBuffer.sampleRate;
   var data = e.inputBuffer.getChannelData(0);
 
   var triggerPt = averageSampleMagnitude * 0.5;
@@ -166,6 +192,7 @@ function startRecord() {
   var inputNode = context.createScriptProcessor(1024, 1/*in*/, 1/*out*/);
   window.dontGarbageCollectMePlease = inputNode;
   console.log("Audio Sample rate : "+context.sampleRate);
+  sampleRate = context.sampleRate;
 
   inputNode.onaudioprocess = processAudio;
 
