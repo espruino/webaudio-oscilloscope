@@ -6,7 +6,6 @@ var drawSamples = new Array(bufferSize);
 for (var i=0;i<bufferSize;i++) drawSamples[i]=0;
 var samplesChanged = true;
 var lastData = new Array(bufferSize);
-var lastSample = 0;
 var lastTriggered = 0;
 var autoTrigger = false;
 var averageSampleMagnitude = 1;
@@ -29,6 +28,25 @@ function draw() {
   }
   averageSampleMagnitude = averageSampleMagnitude*0.9 + sampleMagnitude*0.1;
   while (scale<16 && averageSampleMagnitude*scale<0.4) scale *= 2;
+
+  // work out the interpreted 'digital' line
+  var interp = new Array(bufferSize);
+  var state;
+  for (var i=0; i<drawSamples.length; ++i) {
+    var wasUndefined = state===undefined;
+    if (drawSamples[i] < -averageSampleMagnitude*0.5)
+      state = 0;
+    if (drawSamples[i] > averageSampleMagnitude*0.5)
+      state = 1;
+    if (state !== undefined) {
+      // now we've seen a state change, we hopefully know what
+      // state the line was at the start
+      if (wasUndefined)
+        for (var j=0; j<i; ++j) 
+          interp[j] = 1-state;
+      interp[i] = state;
+    }    
+  }
 
   // mapping for rendering data
   function getX(v) { return v*W/drawSamples.length; }
@@ -57,19 +75,15 @@ function draw() {
   ctx.stroke();
 
   // the interpreted line
-  var interpHeight 
-  ctx.beginPath();
-  var state = 1;
-  ctx.moveTo(getX(0),getIY(state));
-  for (var i = 0; i < drawSamples.length; ++i) {
-    if (drawSamples[i] < -averageSampleMagnitude*0.5)
-      state = 0;
-    if (drawSamples[i] > averageSampleMagnitude*0.5)
-      state = 1;
-    ctx.lineTo(getX(i), getIY(state));
+  if (state!==undefined) {
+    ctx.beginPath();
+    ctx.moveTo(getX(0),getIY(state));
+    for (var i=0; i<drawSamples.length; ++i) {
+      ctx.lineTo(getX(i), getIY(interp[i]));
+    }
+    ctx.strokeStyle = '#00ffff';
+    ctx.stroke();
   }
-  ctx.strokeStyle = '#00ffff';
-  ctx.stroke();
 
   ctx.font = "20px sans-serif";
   ctx.textBaseline = "top";
@@ -89,23 +103,14 @@ function processAudio(e) {
   // console.log("Foo");
   var data = e.inputBuffer.getChannelData(0);
 
-  var triggerPt = 0.02;
+  var triggerPt = averageSampleMagnitude * 0.5;
+  if (triggerPt < 0.01) triggerPt = 0.01;
 
   // find trigger
   var triggerIdx = undefined;
-  for (var i = bufferSize - (bufferSize/2); i < bufferSize; ++i) {
-    var sample = lastData[i];
-
-    lastTriggered++;
-    if (sample>triggerPt && lastSample<=triggerPt) {
-      triggerPt = sample;
-      triggerIdx = i - bufferSize;
-      lastTriggered = 0;
-    }
-    lastSample = sample;
-  }
-  for (var i = 0; i < data.length - (bufferSize/2); ++i) {
-    var sample = data[i];
+  var lastSample = lastData[bufferSize/2]
+  for (var i = -(bufferSize/2); i < bufferSize/2; ++i) {
+    var sample = (i<0) ? lastData[i+bufferSize] : data[i];
 
     lastTriggered++;
     if (sample>triggerPt && lastSample<=triggerPt) {
@@ -120,7 +125,7 @@ function processAudio(e) {
   if (triggerIdx===undefined) {   
     lastTriggered++;
     // if we haven't triggered for a while, turn it on...
-    if (lastTriggered>20) { 
+    if (lastTriggered>50) { 
       autoTrigger = true;
       triggerIdx = data.length - (bufferSize/2);
     }
@@ -135,7 +140,7 @@ function processAudio(e) {
         drawSamples[i] = lastData[idx + bufferSize];
       } else drawSamples[i] = data[idx];
     }
-    draw();
+    setTimeout(draw, 1);
   }
 
   for (var i=0;i<bufferSize;++i) {
