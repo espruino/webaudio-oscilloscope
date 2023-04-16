@@ -234,14 +234,13 @@ window.onresize = function() {
 
   canvas.style.width = W+"px";
   canvas.style.height = H+"px;";
-
-  startRecord();
 };
 
 window.onload = function() {
   window.onresize();
-
-  startRecord();
 };
 
-
+document.getElementById("modal").onclick = function() {
+  document.getElementById("modal").remove();
+  startRecord();
+};
